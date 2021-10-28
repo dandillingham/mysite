@@ -1,0 +1,73 @@
+# kubectl create configmap mysite-html --from-file index.html
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysite-nginx
+  labels:
+    app: mysite-nginx
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: mysite-nginx
+  template:
+    metadata:
+      labels:
+        app: mysite-nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - name: html-volume
+          mountPath: /usr/share/nginx/html
+      volumes:
+      - name: html-volume
+        configMap:
+          name: mysite-html
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysite-nginx-service
+spec:
+  selector:
+    app: mysite-nginx
+  ports:
+    - protocol: TCP
+      port: 80
+
+---
+
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: mysite-nginx-ingress
+  namespace: default
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`k3s`) && PathPrefix(`/mysite`)
+      kind: Rule
+      services:
+        - name: mysite-nginx-service
+          port: 80
+      middlewares:
+        - name: mysite
+---
+
+---
+
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: mysite
+  namespace: default
+spec:
+  stripPrefix:
+    prefixes:
+      - /mysite
